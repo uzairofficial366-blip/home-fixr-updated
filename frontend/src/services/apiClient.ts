@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://home-fixr-updated-j2z4.vercel.app/api";
+const API_URL = import.meta.env.VITE_API_URL || "https://home-fixr-updated-j2z4-git-main-uzairofficial366-blips-projects.vercel.app/api";
 
 export const apiClient = axios.create({
   baseURL: API_URL,
