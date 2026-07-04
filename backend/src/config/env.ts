@@ -8,7 +8,7 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32),
   PORT: z.coerce.number().default(5000),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-  FRONTEND_URL: z.string().default("http://localhost:5173"),
+  FRONTEND_URL: z.string().default("https://home-fixr-updated-a718.vercel.app"),
   GROQ_API_KEY: z.string().optional(),
 });
 
