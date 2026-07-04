@@ -64,6 +64,11 @@ app.get("/health", (_req, res) => {
   res.json({ status: "healthy", timestamp: new Date() });
 });
 
+// Root welcome message to confirm successful deployment
+app.get("/", (_req, res) => {
+  res.json({ message: "🚀 HomeFixr API is running successfully!" });
+});
+
 // Error handling middleware
 app.use(errorHandler);
 
