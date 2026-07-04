@@ -20,10 +20,22 @@ import adminRoutes from "./routes/admin.routes.js";
 const app = express();
 
 // Security middlewares
-app.use(helmet());
 app.use(
   cors({
-    origin: [env.FRONTEND_URL, "http://localhost:5173", "http://localhost:3000"],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      
+      // Allow local development URLs
+      const isLocal = origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:");
+      // Allow any Vercel deployment URL associated with this project
+      const isVercel = origin.endsWith(".vercel.app") && origin.includes("home-fixr");
+      
+      if (isLocal || isVercel || origin === env.FRONTEND_URL) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );
