@@ -42,13 +42,11 @@ export function Nav() {
     <header className="sticky top-0 z-50 border-b border-border bg-white/95 backdrop-blur-sm">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <Link to="/" className="flex items-center gap-2.5 font-bold">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-white shadow-md">
-            <img
+          <img
               src="/Home Fixr Icon-128x128.jpg"
               alt="HomeFixr Logo"
-              className="h-full w-full object-contain p-1"
+              className="h-10 w-10 object-contain mix-blend-multiply"
             />
-          </span>
           <span className="text-xl tracking-tight">
             <span className="text-primary">Home</span>
             <span className="text-accent-orange">Fixr</span>

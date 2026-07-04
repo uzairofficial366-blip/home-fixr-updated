@@ -59,7 +59,7 @@ export function Nav() {
           <img
               src={homefixrLogo}
               alt="HomeFixr Logo"
-              className="h-10 w-10 object-contain"
+              className="h-10 w-10 object-contain mix-blend-multiply"
             />
           <span className="text-xl tracking-tight">
             <span className="text-primary">Home</span>

@@ -74,7 +74,7 @@ function AuthPage() {
           <img
             src={homefixrLogo}
             alt="HomeFixr Logo"
-            className="h-12 w-12 object-contain"
+            className="h-12 w-12 object-contain mix-blend-multiply"
           />
           <span className="text-2xl font-bold">
             <span className="text-primary">Home</span>

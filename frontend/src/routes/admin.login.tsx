@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Hammer, Shield, Eye, EyeOff } from "lucide-react";
+import homefixrLogo from "../../public/Home Fixr Icon-128x128.jpg";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/login")({
@@ -40,9 +41,11 @@ function AdminLoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center gap-3">
-          <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[#1F3A63] shadow-lg">
-            <Hammer className="h-7 w-7 text-white" />
-          </div>
+          <img
+            src={homefixrLogo}
+            alt="HomeFixr Logo"
+            className="h-14 w-14 object-contain mix-blend-multiply"
+          />
           <div className="text-center">
             <h1 className="text-2xl font-bold text-[#1F3A63]">HomeFixr</h1>
             <p className="text-sm text-muted-foreground">Administration Panel</p>

@@ -84,7 +84,7 @@ export function AdminLayout() {
             <img
               src={homefixrLogo}
               alt="HomeFixr Logo"
-              className="h-9 w-9 object-contain"
+              className="h-9 w-9 object-contain mix-blend-multiply"
             />
             <div>
               <p className="text-base font-bold text-[#1F3A63] leading-none">HomeFixr</p>
