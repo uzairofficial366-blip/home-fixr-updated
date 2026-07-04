@@ -19,11 +19,11 @@ import {
   X,
   Bell,
   ChevronRight,
-  Hammer,
   Tag,
   Wrench,
   UserCircle2,
 } from "lucide-react";
+import homefixrLogo from "../../public/Home Fixr Icon-128x128.jpg";
 
 const NAV = [
   { title: "Customers", icon: Users, path: "/admin/users" },
@@ -81,8 +81,12 @@ export function AdminLayout() {
         {/* Logo */}
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <Link to="/admin" className="flex items-center gap-2.5" onClick={() => setOpen(false)}>
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-[#1F3A63] shadow">
-              <Hammer className="h-5 w-5 text-white" />
+            <div className="grid h-9 w-9 place-items-center rounded-xl bg-[#1F3A63] shadow overflow-hidden">
+              <img
+                src={homefixrLogo}
+                alt="HomeFixr Logo"
+                className="h-full w-full object-contain p-1"
+              />
             </div>
             <div>
               <p className="text-base font-bold text-[#1F3A63] leading-none">HomeFixr</p>
