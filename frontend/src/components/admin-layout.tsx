@@ -81,13 +81,11 @@ export function AdminLayout() {
         {/* Logo */}
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <Link to="/admin" className="flex items-center gap-2.5" onClick={() => setOpen(false)}>
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-[#1F3A63] shadow overflow-hidden">
-              <img
-                src={homefixrLogo}
-                alt="HomeFixr Logo"
-                className="h-full w-full object-contain p-1"
-              />
-            </div>
+            <img
+              src={homefixrLogo}
+              alt="HomeFixr Logo"
+              className="h-9 w-9 object-contain"
+            />
             <div>
               <p className="text-base font-bold text-[#1F3A63] leading-none">HomeFixr</p>
               <p className="text-[11px] text-muted-foreground">Admin Panel</p>

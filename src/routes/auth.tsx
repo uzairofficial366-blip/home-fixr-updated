@@ -71,13 +71,11 @@ function AuthPage() {
     <main className="bg-soft min-h-[calc(100vh-4rem)] py-12">
       <Container className="max-w-md">
         <div className="mb-8 flex items-center justify-center gap-3">
-          <span className="grid h-12 w-12 place-items-center rounded-xl bg-primary text-white shadow-lg">
-            <img
-              src={homefixrLogo}
-              alt="HomeFixr Logo"
-              className="h-full w-full object-contain p-1.5"
-            />
-          </span>
+          <img
+            src={homefixrLogo}
+            alt="HomeFixr Logo"
+            className="h-12 w-12 object-contain"
+          />
           <span className="text-2xl font-bold">
             <span className="text-primary">Home</span>
             <span className="text-accent-orange">Fixr</span>
