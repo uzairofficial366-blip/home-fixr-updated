@@ -34,6 +34,8 @@ import {
   adminChangePassword,
   getEscrowDetails,
   getRevenueDetails,
+  listAdminCommissions,
+  reviewCommission,
 } from "../controllers/admin.controller.js";
 import { authenticateUser } from "../middleware/authenticate.js";
 import { authorizeRoles } from "../middleware/authorize.js";
@@ -94,4 +96,9 @@ router.post("/change-password", adminAuth, adminChangePassword);
 router.get("/escrow", adminAuth, getEscrowDetails);
 router.get("/revenue", adminAuth, getRevenueDetails);
 
+// Commission management routes
+router.get("/commissions", adminAuth, listAdminCommissions);
+router.post("/commissions/:id/review", adminAuth, reviewCommission);
+
 export default router;
+

@@ -29,6 +29,7 @@ model User {
   verificationRequests VerificationRequest[]
   reviewsGiven        Review[]         @relation("ReviewerReviews")
   reviewsReceived     Review[]         @relation("ProviderReviews")
+  commissionPayments  CommissionPayment[]
 
   @@map("users")
 }
@@ -81,6 +82,7 @@ model Job {
   payment     Payment?
   broadcasts  JobBroadcast[]
   review      Review[]
+  commissionPayment CommissionPayment?
 
   @@map("jobs")
 }
@@ -265,4 +267,22 @@ model Setting {
   updatedAt DateTime @default(now()) @map("updated_at")
 
   @@map("settings")
+}
+
+model CommissionPayment {
+  id             Int       @id @default(autoincrement())
+  jobId          Int       @unique @map("job_id")
+  providerId     Int       @map("provider_id")
+  amountOwed     Decimal   @map("amount_owed") @db.Decimal(10, 2)
+  status         String    @default("unpaid") // unpaid | pending_approval | paid | rejected
+  receiptUrl     String?   @map("receipt_url")
+  submittedAt    DateTime? @map("submitted_at")
+  reviewedAt     DateTime? @map("reviewed_at")
+  adminNotes     String    @default("") @map("admin_notes")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  job            Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  provider       User      @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@map("commission_payments")
 }

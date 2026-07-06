@@ -14,6 +14,7 @@ import {
   BriefcaseBusiness,
   Menu,
   X,
+  Wallet,
 } from "lucide-react";
 
 type Notification = {
@@ -99,6 +100,16 @@ export function Nav() {
                     >
                       <BriefcaseBusiness className="h-4 w-4" />
                       Jobs Applied
+                    </Button>
+                  </Link>
+                  <Link to="/provider" search={{ tab: "revenue" }}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-foreground hover:text-accent-orange hover:bg-muted"
+                    >
+                      <Wallet className="h-4 w-4" />
+                      Revenue
                     </Button>
                   </Link>
                   <Link to="/provider">
@@ -211,6 +222,12 @@ export function Nav() {
                       <Button variant="ghost" className="w-full justify-start text-foreground hover:text-accent-orange">
                         <BriefcaseBusiness className="h-4 w-4 mr-2" />
                         Jobs Applied
+                      </Button>
+                    </Link>
+                    <Link to="/provider" search={{ tab: "revenue" }} className="block" onClick={() => setMobileMenuOpen(false)}>
+                      <Button variant="ghost" className="w-full justify-start text-foreground hover:text-accent-orange">
+                        <Wallet className="h-4 w-4 mr-2" />
+                        Revenue
                       </Button>
                     </Link>
                     <Link to="/provider" className="block" onClick={() => setMobileMenuOpen(false)}>

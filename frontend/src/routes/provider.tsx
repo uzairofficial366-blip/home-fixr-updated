@@ -1,13 +1,16 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useEffect, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, useLocation } from "@tanstack/react-router";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   getProviderProfile,
   updateProviderProfile,
   submitVerification,
   listAppliedJobs,
   uploadVerificationDocument,
+  listProviderCommissions,
+  submitCommissionPayment,
 } from "@/lib/provider.functions";
+import { adminService } from "@/services/admin.service";
 import { CATEGORIES } from "@/lib/jobs.functions";
 import { Container, PageHeader, StatusBadge } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,8 +28,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Camera, ShieldCheck, Upload, FileText, Eye, BriefcaseBusiness } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Camera, ShieldCheck, Upload, FileText, Eye, BriefcaseBusiness, TrendingUp, Wallet, CheckCircle2, Clock, AlertCircle, X, Building2 } from "lucide-react";
 import { toast } from "sonner";
+
 
 export const Route = createFileRoute("/provider")({
   head: () => ({ meta: [{ title: "Provider profile — HomeFixr" }] }),
@@ -88,7 +93,17 @@ function ProviderPage() {
   const uploadDocument = uploadVerificationDocument;
   const p = (profile as ProviderProfile | undefined) ?? null;
 
-  const [tab, setTab] = useState<"profile" | "verification" | "jobs">("profile");
+  const location = useLocation();
+  const [tab, setTab] = useState<"profile" | "verification" | "jobs" | "revenue">("profile");
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const urlTab = params.get("tab");
+    if (urlTab === "profile" || urlTab === "verification" || urlTab === "jobs" || urlTab === "revenue") {
+      setTab(urlTab);
+    }
+  }, [location.search]);
+
   const [form, setForm] = useState({
     bio: "",
     categories: [] as string[],
@@ -214,6 +229,22 @@ function ProviderPage() {
       </Container>
     );
 
+  // When navigating directly to Revenue via navbar, render only the Revenue view
+  if (tab === "revenue") {
+    return (
+      <Container className="max-w-3xl">
+        <PageHeader
+          title="Revenue"
+          subtitle="Track your earnings and manage commission payments."
+          action={<StatusBadge status={p?.verification_status ?? "unverified"} />}
+        />
+        <div className="mt-6">
+          <RevenueTab />
+        </div>
+      </Container>
+    );
+  }
+
   return (
     <Container className="max-w-3xl">
       <PageHeader
@@ -223,12 +254,12 @@ function ProviderPage() {
       />
 
       {/* Tabs */}
-      <div className="my-6 flex gap-1 rounded-xl border border-border bg-muted/30 p-1">
+      <div className="my-6 flex gap-1 rounded-xl border border-border bg-muted/30 p-1 flex-wrap">
         {(["profile", "verification", "jobs"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-all min-w-[80px] ${
               tab === t
                 ? "bg-white shadow-sm text-primary"
                 : "text-muted-foreground hover:text-foreground"
@@ -701,6 +732,396 @@ function AppliedJobsTab() {
           </Card>
         ))
       )}
+    </div>
+  );
+}
+
+// ─── Commission Status Badge ──────────────────────────────────────────────────
+function CommissionStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; className: string }> = {
+    unpaid: { label: "Unpaid", className: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+    pending_approval: { label: "Pending Verification", className: "bg-blue-100 text-blue-800 border-blue-200" },
+    paid: { label: "Paid", className: "bg-green-100 text-green-800 border-green-200" },
+    rejected: { label: "Rejected", className: "bg-red-100 text-red-800 border-red-200" },
+  };
+  const config = map[status] ?? { label: status, className: "bg-muted text-foreground border-border" };
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${config.className}`}>
+      {config.label}
+    </span>
+  );
+}
+
+// ─── Revenue Tab ──────────────────────────────────────────────────────────────
+type CommissionRecord = {
+  id: number;
+  job_id: number;
+  job_title: string;
+  completed_at: string | null;
+  job_payment_amount: number;
+  amount_owed: number;
+  status: string;
+  receipt_url: string | null;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  admin_notes: string;
+  created_at: string;
+};
+
+type CommissionSummary = {
+  totalEarned: number;
+  totalOwed: number;
+  paidCommission: number;
+  pendingCommission: number;
+  unpaidCommission: number;
+};
+
+function RevenueTab() {
+  const qc = useQueryClient();
+  const [payTarget, setPayTarget] = useState<CommissionRecord | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+
+  const { data, isLoading } = useQuery<{ commissions: CommissionRecord[]; summary: CommissionSummary }>({
+    queryKey: ["providerCommissions"],
+    queryFn: () => listProviderCommissions(),
+  });
+
+  const { data: settings } = useQuery<Record<string, string>>({
+    queryKey: ["adminSettings"],
+    queryFn: () => adminService.getSettings(),
+    staleTime: 60_000,
+  });
+
+  const bankName = settings?.["bank_name"] ?? "";
+  const bankAccountTitle = settings?.["bank_account_title"] ?? "";
+  const bankAccountNumber = settings?.["bank_account_number"] ?? "";
+  const hasBankDetails = bankName || bankAccountTitle || bankAccountNumber;
+
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      if (!payTarget || !receiptFile) throw new Error("No receipt selected");
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("Could not read file"));
+        reader.readAsDataURL(receiptFile);
+      });
+      return submitCommissionPayment({
+        data: { commissionId: payTarget.id, receiptBase64: base64, mimeType: receiptFile.type },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Receipt submitted — pending admin approval");
+      qc.invalidateQueries({ queryKey: ["providerCommissions"] });
+      closeModal();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const closeModal = useCallback(() => {
+    setPayTarget(null);
+    setReceiptFile(null);
+    setReceiptPreview(null);
+    if (receiptInputRef.current) receiptInputRef.current.value = "";
+  }, []);
+
+  const handleReceiptSelect = (file: File) => {
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(file.type)) { toast.error("Only JPG, PNG, or WebP images are allowed."); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Image must be under 5MB."); return; }
+    setReceiptFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setReceiptPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = () => setIsDragging(false);
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault(); setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleReceiptSelect(file);
+  };
+
+  const commissions = data?.commissions ?? [];
+  const summary = data?.summary;
+
+  if (isLoading) return <p className="my-6 text-sm text-muted-foreground">Loading revenue data…</p>;
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Metrics */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-white">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-emerald-100 p-2.5">
+                <TrendingUp className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total Earned</p>
+                <p className="text-lg font-bold text-emerald-700">PKR {Number(summary?.totalEarned ?? 0).toLocaleString()}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-green-50 to-white">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-green-100 p-2.5">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Paid Commission</p>
+                <p className="text-lg font-bold text-green-700">PKR {Number(summary?.paidCommission ?? 0).toLocaleString()}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-blue-50 to-white">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-blue-100 p-2.5">
+                <Clock className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Pending Verification</p>
+                <p className="text-lg font-bold text-blue-700">PKR {Number(summary?.pendingCommission ?? 0).toLocaleString()}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-yellow-50 to-white">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-yellow-100 p-2.5">
+                <AlertCircle className="h-5 w-5 text-yellow-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Owed Commission</p>
+                <p className="text-lg font-bold text-yellow-700">PKR {Number(summary?.unpaidCommission ?? 0).toLocaleString()}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Bank Account Details */}
+      {hasBankDetails && (
+        <Card className="rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Building2 className="h-5 w-5 text-accent-orange" />
+              Payment Account Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              Transfer your 20% platform commission to the following bank account and upload the receipt below.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {bankName && (
+                <div className="rounded-xl bg-white border border-orange-100 p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Bank Name</p>
+                  <p className="font-bold text-foreground">{bankName}</p>
+                </div>
+              )}
+              {bankAccountTitle && (
+                <div className="rounded-xl bg-white border border-orange-100 p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Account Title</p>
+                  <p className="font-bold text-foreground">{bankAccountTitle}</p>
+                </div>
+              )}
+              {bankAccountNumber && (
+                <div className="rounded-xl bg-white border border-orange-100 p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Account Number</p>
+                  <p className="font-bold text-foreground font-mono tracking-wide">{bankAccountNumber}</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Jobs & Commission List */}
+      <Card className="rounded-2xl border-0 shadow-sm overflow-hidden">
+        <CardHeader className="border-b border-border">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Wallet className="h-5 w-5 text-accent-orange" />
+            Commission History
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {commissions.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              <Wallet className="h-12 w-12 text-muted-foreground/40" />
+              <p className="font-semibold">No commission records yet</p>
+              <p className="text-sm text-muted-foreground">Complete jobs to see your earnings here.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    {["Job", "Completed", "Earned", "20% Commission", "Status", "Action"].map((h) => (
+                      <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {commissions.map((c) => (
+                    <tr key={c.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <p className="font-medium">{c.job_title}</p>
+                        <p className="text-xs text-muted-foreground">#{c.job_id}</p>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="text-xs text-muted-foreground">
+                          {c.completed_at ? new Date(c.completed_at).toLocaleDateString() : "—"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 font-medium text-emerald-700">
+                        PKR {Number(c.job_payment_amount || 0).toLocaleString()}
+                      </td>
+                      <td className="px-5 py-3.5 font-semibold text-orange-600">
+                        PKR {Number(c.amount_owed).toLocaleString()}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="space-y-1">
+                          <CommissionStatusBadge status={c.status} />
+                          {c.status === "rejected" && c.admin_notes && (
+                            <p className="text-xs text-red-600 mt-1">Reason: {c.admin_notes}</p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {(c.status === "unpaid" || c.status === "rejected") && (
+                          <Button
+                            size="sm"
+                            onClick={() => setPayTarget(c)}
+                            className="bg-accent-orange hover:bg-orange-600 text-white text-xs"
+                          >
+                            Pay Commission
+                          </Button>
+                        )}
+                        {c.status === "pending_approval" && (
+                          <span className="text-xs text-blue-600 font-medium">Under Review</span>
+                        )}
+                        {c.status === "paid" && (
+                          <span className="text-xs text-green-600 font-medium">✓ Cleared</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Pay Commission Modal */}
+      <Dialog open={!!payTarget} onOpenChange={(o) => !o && closeModal()}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-accent-orange" />
+              Pay Commission
+            </DialogTitle>
+            <DialogDescription>
+              Upload a screenshot of your bank transfer receipt for admin verification.
+            </DialogDescription>
+          </DialogHeader>
+
+          {payTarget && (
+            <div className="space-y-4">
+              {/* Summary */}
+              <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-sm font-semibold">{payTarget.job_title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Job #{payTarget.job_id}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Amount Due</p>
+                    <p className="text-xl font-bold text-accent-orange">PKR {Number(payTarget.amount_owed).toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bank Details in Modal */}
+              {hasBankDetails && (
+                <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Transfer To</p>
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    {bankName && <div><p className="text-xs text-muted-foreground">Bank</p><p className="font-medium">{bankName}</p></div>}
+                    {bankAccountTitle && <div><p className="text-xs text-muted-foreground">Title</p><p className="font-medium">{bankAccountTitle}</p></div>}
+                    {bankAccountNumber && <div><p className="text-xs text-muted-foreground">Account #</p><p className="font-medium font-mono text-xs">{bankAccountNumber}</p></div>}
+                  </div>
+                </div>
+              )}
+
+              {/* Upload Area */}
+              <div>
+                <Label className="text-sm font-semibold mb-2 block">Upload Payment Receipt</Label>
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => receiptInputRef.current?.click()}
+                  className={`cursor-pointer rounded-xl border-2 border-dashed p-6 text-center transition-all ${
+                    isDragging
+                      ? "border-accent-orange bg-orange-50"
+                      : "border-border bg-muted/20 hover:border-accent-orange hover:bg-orange-50/30"
+                  }`}
+                >
+                  {receiptPreview ? (
+                    <div className="relative">
+                      <img src={receiptPreview} alt="Receipt preview" className="mx-auto max-h-40 rounded-lg object-contain" />
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setReceiptFile(null); setReceiptPreview(null); }}
+                        className="absolute -top-2 -right-2 rounded-full bg-destructive text-white p-0.5 shadow"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                      <p className="text-sm text-muted-foreground">Click or drag & drop receipt image</p>
+                      <p className="text-xs text-muted-foreground mt-1">JPG, PNG, WebP — max 5MB</p>
+                    </>
+                  )}
+                  <input
+                    ref={receiptInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleReceiptSelect(f); }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <Button variant="outline" onClick={closeModal} className="flex-1" disabled={submitMutation.isPending}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => submitMutation.mutate()}
+                  disabled={!receiptFile || submitMutation.isPending}
+                  className="flex-1 bg-accent-orange hover:bg-orange-600 text-white"
+                >
+                  {submitMutation.isPending ? "Submitting…" : "Submit Receipt"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

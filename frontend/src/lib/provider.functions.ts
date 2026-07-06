@@ -24,3 +24,12 @@ export const getPublicProviderProfile = async ({ data }: { data: { id: number } 
   const id = typeof data === "object" && "id" in data ? data.id : data;
   return providerService.getPublicProfile(id);
 };
+
+export const listProviderCommissions = async () => {
+  return providerService.listCommissions();
+};
+
+export const submitCommissionPayment = async ({ data }: { data: { commissionId: number; receiptBase64: string; mimeType: string } }) => {
+  return providerService.submitCommissionPayment(data.commissionId, { receiptBase64: data.receiptBase64, mimeType: data.mimeType });
+};
+

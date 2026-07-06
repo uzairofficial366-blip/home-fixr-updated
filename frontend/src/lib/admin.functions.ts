@@ -49,3 +49,8 @@ export const adminChangePassword = async ({ data }: { data: any }) => adminServi
 
 export const adminGetEscrowDetails = async ({ data }: { data?: any } = {}) => adminService.getEscrowDetails(data);
 export const adminGetRevenueDetails = async ({ data }: { data?: any } = {}) => adminService.getRevenueDetails(data);
+
+export const adminListCommissions = async ({ data }: { data?: any } = {}) => adminService.listCommissions(data);
+export const adminReviewCommission = async ({ data }: { data: { commissionId: number; decision: "paid" | "rejected"; adminNotes?: string } }) =>
+  adminService.reviewCommission(data.commissionId, { decision: data.decision, adminNotes: data.adminNotes });
+

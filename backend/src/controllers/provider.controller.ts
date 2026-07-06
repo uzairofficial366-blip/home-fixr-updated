@@ -169,3 +169,69 @@ export async function getPublicProviderProfile(req: AuthRequest, res: Response) 
   `;
   sendSuccess(res, { profile: rows[0], reviews });
 }
+
+export async function listProviderCommissions(req: AuthRequest, res: Response) {
+  if (req.user!.role !== "provider") { sendError(res, "Providers only", 403); return; }
+
+  const rows = await prisma.$queryRaw<Record<string, unknown>[]>`
+    SELECT cp.id, cp.job_id, cp.provider_id, cp.amount_owed, cp.status,
+      cp.receipt_url, cp.submitted_at, cp.reviewed_at, cp.admin_notes, cp.created_at,
+      j.title AS job_title, j.completed_at,
+      p.amount AS job_payment_amount
+    FROM commission_payments cp
+    JOIN jobs j ON j.id = cp.job_id
+    LEFT JOIN payments p ON p.job_id = cp.job_id
+    WHERE cp.provider_id = ${req.user!.uid}
+    ORDER BY cp.created_at DESC
+  `;
+
+  // Compute summary stats
+  const allCommissions = rows as any[];
+  const totalEarned = allCommissions.reduce((s, c) => s + Number(c.job_payment_amount || 0), 0);
+  const totalOwed = allCommissions.reduce((s, c) => s + Number(c.amount_owed || 0), 0);
+  const paidCommission = allCommissions.filter(c => c.status === "paid").reduce((s, c) => s + Number(c.amount_owed || 0), 0);
+  const pendingCommission = allCommissions.filter(c => c.status === "pending_approval").reduce((s, c) => s + Number(c.amount_owed || 0), 0);
+  const unpaidCommission = allCommissions.filter(c => c.status === "unpaid" || c.status === "rejected").reduce((s, c) => s + Number(c.amount_owed || 0), 0);
+
+  sendSuccess(res, {
+    commissions: rows,
+    summary: { totalEarned, totalOwed, paidCommission, pendingCommission, unpaidCommission },
+  });
+}
+
+export async function submitCommissionPayment(req: AuthRequest, res: Response) {
+  if (req.user!.role !== "provider") { sendError(res, "Providers only", 403); return; }
+
+  const commissionId = parseInt(String(req.params.id || req.body.commissionId));
+  if (isNaN(commissionId)) { sendError(res, "Invalid commission ID", 400); return; }
+
+  const { receiptBase64, mimeType } = req.body as { receiptBase64?: string; mimeType?: string };
+  if (!receiptBase64) { sendError(res, "Receipt image is required", 400); return; }
+
+  const allowedMimes = new Set(["image/jpeg", "image/png", "image/webp"]);
+  const finalMime = mimeType || "image/jpeg";
+  if (!allowedMimes.has(finalMime)) { sendError(res, "Only JPG, PNG, or WebP images are accepted.", 400); return; }
+
+  const base64Data = receiptBase64.includes(",") ? receiptBase64.split(",")[1] : receiptBase64;
+  const sizeBytes = Math.round((base64Data.length * 3) / 4);
+  if (sizeBytes > 5 * 1024 * 1024) { sendError(res, "Receipt image must be under 5MB.", 400); return; }
+  if (sizeBytes === 0) { sendError(res, "Receipt image is empty.", 400); return; }
+
+  const receiptUrl = receiptBase64.startsWith("data:") ? receiptBase64 : `data:${finalMime};base64,${base64Data}`;
+
+  const commission = await prisma.commissionPayment.findFirst({
+    where: { id: commissionId, providerId: req.user!.uid },
+  });
+  if (!commission) { sendError(res, "Commission record not found", 404); return; }
+  if (commission.status !== "unpaid" && commission.status !== "rejected") {
+    sendError(res, "This commission is not eligible for payment submission", 400); return;
+  }
+
+  await prisma.commissionPayment.update({
+    where: { id: commissionId },
+    data: { status: "pending_approval", receiptUrl, submittedAt: new Date(), adminNotes: "" },
+  });
+
+  sendSuccess(res, { ok: true });
+}
+

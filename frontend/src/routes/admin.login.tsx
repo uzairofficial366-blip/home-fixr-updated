@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Hammer, Shield, Eye, EyeOff } from "lucide-react";
-import homefixrLogo from "../../public/Home Fixr Icon-128x128.jpg";
+const homefixrLogo = "/Home Fixr Icon-128x128.jpg";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/login")({

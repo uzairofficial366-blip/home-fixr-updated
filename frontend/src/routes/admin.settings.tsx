@@ -1,7 +1,7 @@
 import { adminService } from "@/services/admin.service";
 import { me } from "@/lib/auth.functions";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Container, PageHeader } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Settings, Globe, Shield, Brain, CreditCard, Mail, Key, Server } from "lucide-react";
+import { Settings, Globe, Shield, Brain, CreditCard, Mail, Key, Server, Building2 } from "lucide-react";
 type Settings = {
   site_name: string;
   site_description: string;
@@ -30,6 +30,9 @@ type Settings = {
   payment_stripe_secret: string;
   payment_paypal_client: string;
   payment_paypal_secret: string;
+  bank_name: string;
+  bank_account_title: string;
+  bank_account_number: string;
 };
 
 export const Route = createFileRoute("/admin/settings")({
@@ -59,7 +62,44 @@ function AdminSettingsPage() {
     payment_stripe_secret: "",
     payment_paypal_client: "",
     payment_paypal_secret: "",
+    bank_name: "",
+    bank_account_title: "",
+    bank_account_number: "",
   });
+
+  const { data: dbSettings } = useQuery({
+    queryKey: ["adminSettings"],
+    queryFn: () => adminService.getSettings(),
+  });
+
+  useEffect(() => {
+    if (dbSettings) {
+      setSettings((prev) => ({
+        ...prev,
+        site_name: dbSettings.site_name ?? prev.site_name,
+        site_description: dbSettings.site_description ?? prev.site_description,
+        maintenance_mode: dbSettings.maintenance_mode === "true" || dbSettings.maintenance_mode === true,
+        ai_pricing_enabled: dbSettings.ai_pricing_enabled === "true" || dbSettings.ai_pricing_enabled === true,
+        ai_verification_enabled: dbSettings.ai_verification_enabled === "true" || dbSettings.ai_verification_enabled === true,
+        payment_escrow_enabled: dbSettings.payment_escrow_enabled === "true" || dbSettings.payment_escrow_enabled === true,
+        support_email: dbSettings.support_email ?? prev.support_email,
+        smtp_host: dbSettings.smtp_host ?? prev.smtp_host,
+        smtp_port: dbSettings.smtp_port ?? prev.smtp_port,
+        smtp_user: dbSettings.smtp_user ?? prev.smtp_user,
+        smtp_pass: dbSettings.smtp_pass ?? prev.smtp_pass,
+        smtp_from: dbSettings.smtp_from ?? prev.smtp_from,
+        jwt_secret: dbSettings.jwt_secret ?? prev.jwt_secret,
+        payment_stripe_key: dbSettings.payment_stripe_key ?? prev.payment_stripe_key,
+        payment_stripe_secret: dbSettings.payment_stripe_secret ?? prev.payment_stripe_secret,
+        payment_paypal_client: dbSettings.payment_paypal_client ?? prev.payment_paypal_client,
+        payment_paypal_secret: dbSettings.payment_paypal_secret ?? prev.payment_paypal_secret,
+        bank_name: dbSettings.bank_name ?? "",
+        bank_account_title: dbSettings.bank_account_title ?? "",
+        bank_account_number: dbSettings.bank_account_number ?? "",
+      }));
+    }
+  }, [dbSettings]);
+
 
   const updateMutation = useMutation({
     mutationFn: async (data: Partial<Settings>) => {
@@ -153,6 +193,49 @@ function AdminSettingsPage() {
                 checked={settings.maintenance_mode}
                 onCheckedChange={(checked) => updateSetting("maintenance_mode", checked)}
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Website Owner Bank Account Details (Commission Payments)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              These details are displayed to providers under their "Revenue" tab to instruct them where to transfer their owed commissions.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div>
+                <Label htmlFor="bank_name">Bank Name</Label>
+                <Input
+                  id="bank_name"
+                  value={settings.bank_name}
+                  onChange={(e) => updateSetting("bank_name", e.target.value)}
+                  placeholder="e.g. Habib Bank Limited"
+                />
+              </div>
+              <div>
+                <Label htmlFor="bank_account_title">Account Title / Name</Label>
+                <Input
+                  id="bank_account_title"
+                  value={settings.bank_account_title}
+                  onChange={(e) => updateSetting("bank_account_title", e.target.value)}
+                  placeholder="e.g. HomeFixr Pvt Ltd"
+                />
+              </div>
+              <div>
+                <Label htmlFor="bank_account_number">Account / IBAN Number</Label>
+                <Input
+                  id="bank_account_number"
+                  value={settings.bank_account_number}
+                  onChange={(e) => updateSetting("bank_account_number", e.target.value)}
+                  placeholder="e.g. PK00 HABB 0123 4567 8901"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>

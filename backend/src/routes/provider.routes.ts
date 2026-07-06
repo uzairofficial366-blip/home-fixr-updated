@@ -6,6 +6,8 @@ import {
   submitVerification,
   listAppliedJobs,
   getPublicProviderProfile,
+  listProviderCommissions,
+  submitCommissionPayment,
 } from "../controllers/provider.controller.js";
 import { authenticateUser } from "../middleware/authenticate.js";
 
@@ -17,5 +19,9 @@ router.post("/document", authenticateUser, uploadVerificationDocument);
 router.post("/verification", authenticateUser, submitVerification);
 router.get("/applied", authenticateUser, listAppliedJobs);
 router.get("/public/:id", getPublicProviderProfile);
+
+// Commission routes
+router.get("/commissions", authenticateUser, listProviderCommissions);
+router.post("/commissions/:id/pay", authenticateUser, submitCommissionPayment);
 
 export default router;

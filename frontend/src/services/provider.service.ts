@@ -30,4 +30,15 @@ export const providerService = {
     const res: any = await apiClient.get(`/provider/public/${id}`);
     return res.data;
   },
+
+  async listCommissions() {
+    const res: any = await apiClient.get("/provider/commissions");
+    return res.data;
+  },
+
+  async submitCommissionPayment(commissionId: number, data: { receiptBase64: string; mimeType: string }) {
+    const res: any = await apiClient.post(`/provider/commissions/${commissionId}/pay`, data);
+    return res.data;
+  },
 };
+

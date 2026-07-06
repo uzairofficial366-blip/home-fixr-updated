@@ -8,7 +8,6 @@ import {
   Users,
   Briefcase,
   Clock,
-  DollarSign,
   Star,
   BarChart3,
   Settings,
@@ -22,15 +21,16 @@ import {
   Tag,
   Wrench,
   UserCircle2,
+  TrendingUp,
 } from "lucide-react";
-import homefixrLogo from "../../public/Home Fixr Icon-128x128.jpg";
+const homefixrLogo = "/Home Fixr Icon-128x128.jpg";
 
 const NAV = [
   { title: "Customers", icon: Users, path: "/admin/users" },
   { title: "Providers", icon: Briefcase, path: "/admin/providers" },
   { title: "Jobs", icon: Wrench, path: "/admin/jobs" },
   { title: "Bids", icon: Clock, path: "/admin/bids" },
-  { title: "Payments", icon: DollarSign, path: "/admin/payments" },
+  { title: "Revenue", icon: TrendingUp, path: "/admin/payments" },
   { title: "Categories", icon: Tag, path: "/admin/categories" },
   { title: "Reviews", icon: Star, path: "/admin/reviews" },
   { title: "Reports", icon: BarChart3, path: "/admin/reports" },

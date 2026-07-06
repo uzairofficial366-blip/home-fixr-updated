@@ -174,4 +174,15 @@ export const adminService = {
     const res: any = await apiClient.get("/admin/revenue", { params });
     return res.data;
   },
+
+  async listCommissions(params?: { status?: string; search?: string; page?: number }) {
+    const res: any = await apiClient.get("/admin/commissions", { params });
+    return res.data;
+  },
+
+  async reviewCommission(commissionId: number, data: { decision: "paid" | "rejected"; adminNotes?: string }) {
+    const res: any = await apiClient.post(`/admin/commissions/${commissionId}/review`, data);
+    return res.data;
+  },
 };
+

@@ -394,13 +394,29 @@ export async function confirmJobCompletion(req: AuthRequest, res: Response) {
   await prisma.job.update({ where: { id: jobId }, data: { status: "completed", completedAt: new Date() } });
   await prisma.payment.updateMany({ where: { jobId, status: "held" }, data: { status: "released", updatedAt: new Date() } });
 
+  // Auto-create commission payment (20%) when payment is released
   if (j.provider_id) {
+    const payment = await prisma.payment.findUnique({ where: { jobId } });
+    if (payment) {
+      const amountOwed = Number(payment.amount) * 0.20;
+      await prisma.commissionPayment.upsert({
+        where: { jobId },
+        update: {},
+        create: {
+          jobId,
+          providerId: Number(j.provider_id),
+          amountOwed,
+          status: "unpaid",
+        },
+      });
+    }
+
     await prisma.notification.create({
       data: {
         userId: Number(j.provider_id),
         title: "Job completed",
-        body: `The customer confirmed completion for '${j.title}'.`,
-        link: `/jobs/${jobId}`,
+        body: `The customer confirmed completion for '${j.title}'. A 20% platform commission is now owed — visit your Revenue tab to pay.`,
+        link: `/provider`,
       },
     });
   }

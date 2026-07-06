@@ -596,3 +596,88 @@ export async function getRevenueDetails(req: AuthRequest, res: Response) {
   ]);
   sendSuccess(res, { payments: rows, total, totalAmount: Number((totalAmount[0] as { t: number }).t) });
 }
+
+// ─── Admin Commission Management ──────────────────────────────────────────────
+export async function listAdminCommissions(req: AuthRequest, res: Response) {
+  const { status, search, page = 0 } = req.query as { status?: string; search?: string; page?: string };
+  const offset = (Number(page) || 0) * 20;
+  const searchPat = search ? `%${search}%` : null;
+  const statusPat = status && status !== "all" ? status : null;
+
+  const [rows, total, summary] = await Promise.all([
+    prisma.$queryRaw<unknown[]>`
+      SELECT cp.id, cp.job_id, cp.provider_id, cp.amount_owed, cp.status,
+        cp.receipt_url, cp.submitted_at, cp.reviewed_at, cp.admin_notes, cp.created_at,
+        j.title AS job_title, j.completed_at,
+        p.amount AS job_payment_amount,
+        u.name AS provider_name, u.email AS provider_email
+      FROM commission_payments cp
+      JOIN jobs j ON j.id = cp.job_id
+      LEFT JOIN payments p ON p.job_id = cp.job_id
+      JOIN users u ON u.id = cp.provider_id
+      WHERE (${statusPat}::text IS NULL OR cp.status = ${statusPat})
+        AND (${searchPat}::text IS NULL OR u.name ILIKE ${searchPat} OR u.email ILIKE ${searchPat} OR j.title ILIKE ${searchPat})
+      ORDER BY cp.created_at DESC LIMIT 20 OFFSET ${offset}
+    `,
+    prisma.$queryRaw<{ c: number }[]>`
+      SELECT COUNT(*)::int AS c FROM commission_payments cp
+      JOIN jobs j ON j.id = cp.job_id
+      JOIN users u ON u.id = cp.provider_id
+      WHERE (${statusPat}::text IS NULL OR cp.status = ${statusPat})
+        AND (${searchPat}::text IS NULL OR u.name ILIKE ${searchPat} OR u.email ILIKE ${searchPat} OR j.title ILIKE ${searchPat})
+    `,
+    prisma.$queryRaw<Record<string, number>[]>`
+      SELECT
+        COALESCE(SUM(CASE WHEN status='unpaid' THEN amount_owed ELSE 0 END),0)::numeric AS unpaid,
+        COALESCE(SUM(CASE WHEN status='pending_approval' THEN amount_owed ELSE 0 END),0)::numeric AS pending,
+        COALESCE(SUM(CASE WHEN status='paid' THEN amount_owed ELSE 0 END),0)::numeric AS paid,
+        COALESCE(SUM(CASE WHEN status='rejected' THEN amount_owed ELSE 0 END),0)::numeric AS rejected
+      FROM commission_payments
+    `,
+  ]);
+
+  sendSuccess(res, { commissions: rows, total: (total[0] as { c: number }).c, summary: summary[0] });
+}
+
+export async function reviewCommission(req: AuthRequest, res: Response) {
+  const commissionId = parseInt(String(req.params.id || req.body.commissionId));
+  if (isNaN(commissionId)) { sendError(res, "Invalid commission ID", 400); return; }
+
+  const { decision, adminNotes } = req.body as { decision?: "paid" | "rejected"; adminNotes?: string };
+  if (!decision || !["paid", "rejected"].includes(decision)) {
+    sendError(res, "Decision must be 'paid' or 'rejected'", 400); return;
+  }
+  if (decision === "rejected" && (!adminNotes || adminNotes.trim().length === 0)) {
+    sendError(res, "A reason is required when rejecting a commission", 400); return;
+  }
+
+  const commission = await prisma.commissionPayment.findUnique({ where: { id: commissionId } });
+  if (!commission) { sendError(res, "Commission record not found", 404); return; }
+  if (commission.status !== "pending_approval") {
+    sendError(res, "Only pending_approval commissions can be reviewed", 400); return;
+  }
+
+  await prisma.commissionPayment.update({
+    where: { id: commissionId },
+    data: { status: decision, adminNotes: adminNotes?.trim() ?? "", reviewedAt: new Date() },
+  });
+
+  // Notify provider
+  const job = await prisma.job.findUnique({ where: { id: commission.jobId }, select: { title: true } });
+  const notifTitle = decision === "paid" ? "Commission Payment Approved ✓" : "Commission Payment Rejected";
+  const notifBody = decision === "paid"
+    ? `Your commission payment for '${job?.title ?? "a job"}' has been approved. Thank you!`
+    : `Your commission payment for '${job?.title ?? "a job"}' was rejected. Reason: ${adminNotes}`;
+
+  await prisma.notification.create({
+    data: {
+      userId: commission.providerId,
+      title: notifTitle,
+      body: notifBody,
+      link: "/provider",
+    },
+  });
+
+  sendSuccess(res, { ok: true });
+}
+
