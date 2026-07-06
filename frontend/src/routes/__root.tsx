@@ -1,5 +1,6 @@
 import { createRootRoute, Outlet, Link, useLocation } from "@tanstack/react-router";
 import { Nav } from "@/components/nav";
+import { ChatbotWidget } from "@/components/chatbot/ChatbotWidget";
 
 function NotFoundComponent() {
   return (
@@ -32,6 +33,7 @@ function RootComponent() {
     <>
       {!isAdminRoute && <Nav />}
       <Outlet />
+      <ChatbotWidget />
     </>
   );
 }
@@ -40,3 +42,4 @@ export const Route = createRootRoute({
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
 });
+

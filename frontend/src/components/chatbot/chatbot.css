@@ -1,0 +1,128 @@
+/* ─── HomeFixr Chatbot Animations ───────────────────────────────────────── */
+
+/* Floating button pulse ring */
+@keyframes hf-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(249, 115, 22, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0);
+  }
+}
+
+.hf-chat-fab {
+  animation: hf-pulse 2.5s ease-in-out infinite;
+}
+
+.hf-chat-fab:hover {
+  animation: none;
+  transform: scale(1.08);
+}
+
+/* Panel slide-up open */
+@keyframes hf-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.hf-panel {
+  animation: hf-slide-up 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transform-origin: bottom right;
+}
+
+/* Message fade-in */
+@keyframes hf-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hf-message {
+  animation: hf-msg-in 0.2s ease-out both;
+}
+
+/* Typing indicator dots */
+@keyframes hf-dot-bounce {
+  0%, 80%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  40% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+.hf-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #1F3A63;
+  display: inline-block;
+  animation: hf-dot-bounce 1.2s ease-in-out infinite;
+}
+
+.hf-dot:nth-child(1) { animation-delay: 0s; }
+.hf-dot:nth-child(2) { animation-delay: 0.2s; }
+.hf-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* Quick-reply chip hover */
+.hf-chip {
+  transition: all 0.18s ease;
+  cursor: pointer;
+  border: 1.5px solid #1F3A63;
+  color: #1F3A63;
+  background: transparent;
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.hf-chip:hover {
+  background: #1F3A63;
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(31, 58, 99, 0.25);
+}
+
+/* Scrollbar styling for chat messages */
+.hf-messages-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.hf-messages-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hf-messages-scroll::-webkit-scrollbar-thumb {
+  background: rgba(31, 58, 99, 0.2);
+  border-radius: 2px;
+}
+
+.hf-messages-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(31, 58, 99, 0.4);
+}
+
+/* Mobile full-width panel */
+@media (max-width: 480px) {
+  .hf-panel {
+    width: calc(100vw - 24px) !important;
+    right: 12px !important;
+  }
+}
