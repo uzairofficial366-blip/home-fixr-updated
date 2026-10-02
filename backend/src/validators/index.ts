@@ -60,8 +60,12 @@ export const CreateJobSchema = z.object({
 
 export const SuggestPriceSchema = z.object({
   category: z.enum(CATEGORIES),
-  title: z.string().min(3).max(200),
-  description: z.string().min(5).max(2000),
+  title: z.string().max(200).optional().default(""),
+  description: z.string().max(2000).optional().default(""),
+  address: z.string().max(300).optional().default(""),
+  estimatedHours: z.number().min(0).max(999).optional(),
+  estimatedDays: z.number().min(0).max(999).optional(),
+  additionalNotes: z.string().max(1000).optional().default(""),
 });
 
 export const BroadcastResponseSchema = z.object({

@@ -75,26 +75,84 @@ function getEstimatedHours(job: {
   const hours = Number(job.estimatedHours || 0);
   if (hours > 0) return hours;
   const days = Number(job.estimatedDays || 0);
-  if (days > 0) return days * 8;
   return 1;
 }
+
+const CATEGORY_PRICE_RANGES: Record<string, { min: number; max: number }> = {
+  Plumbing: { min: 1000, max: 4000 },
+  Electrical: { min: 1000, max: 4500 },
+  Gardening: { min: 1200, max: 3500 },
+  Carpenter: { min: 1500, max: 5000 },
+  Painter: { min: 2000, max: 6000 },
+  Cleaning: { min: 1200, max: 3500 },
+  "AC Technician": { min: 1500, max: 5500 },
+  Mason: { min: 2000, max: 6500 },
+  "Home Maintenance": { min: 1500, max: 5000 },
+  "Appliance Repair": { min: 1200, max: 4500 },
+  "Pest Control": { min: 2500, max: 7000 },
+  "Other Services": { min: 1000, max: 4000 },
+};
 
 export async function suggestPrice(req: AuthRequest, res: Response) {
   const parse = SuggestPriceSchema.safeParse(req.body);
   if (!parse.success) { sendError(res, parse.error.issues[0]?.message || "Validation error", 422); return; }
+  const data = parse.data;
+
+  const jobTitle = data.title?.trim() || `${data.category} Service`;
+  const jobDesc = data.description?.trim() || "Standard home maintenance or repair request.";
+
+  let userPrompt = `Category: ${data.category}\nJob Title: ${jobTitle}\nWork Description: ${jobDesc}`;
+  if (data.address?.trim()) {
+    userPrompt += `\nLocation: ${data.address.trim()}`;
+  }
+  if (data.estimatedHours && data.estimatedHours > 0) {
+    userPrompt += `\nEstimated Duration: ${data.estimatedHours} hour(s)`;
+  }
+  if (data.estimatedDays && data.estimatedDays > 0) {
+    userPrompt += `\nEstimated Duration: ${data.estimatedDays} day(s)`;
+  }
+  if (data.additionalNotes?.trim()) {
+    userPrompt += `\nAdditional Notes: ${data.additionalNotes.trim()}`;
+  }
+  userPrompt += `\n\nEstimate a realistic fair total price range in Pakistani Rupees (PKR) for this specific work data.
+Respond with JSON: {"min": number (PKR), "max": number (PKR), "reasoning": string (1-2 sentences explaining why based on scope and hours)}`;
+
   try {
     const result = await groqJson<{ min: number; max: number; reasoning: string }>(
-      "You are a pricing expert for home service jobs in Pakistan (currency: PKR). Estimate a fair total price range.",
-      `Category: ${parse.data.category}\nTitle: ${parse.data.title}\nDescription: ${parse.data.description}\n\nRespond with JSON: {"min": number (PKR), "max": number (PKR), "reasoning": string (1-2 sentences)}`
+      "You are an expert pricing consultant for home services and trade jobs in Pakistan (currency: PKR). Estimate a fair total price range.",
+      userPrompt
     );
-    sendSuccess(res, {
-      min: Math.max(0, Math.round(Number(result.min) || 0)),
-      max: Math.max(0, Math.round(Number(result.max) || 0)),
-      reasoning: String(result.reasoning || ""),
-    });
-  } catch (e) {
-    sendSuccess(res, { min: 0, max: 0, reasoning: `AI unavailable: ${(e as Error).message}` });
+    const rMin = Math.max(0, Math.round(Number(result.min) || 0));
+    const rMax = Math.max(0, Math.round(Number(result.max) || 0));
+    const min = Math.min(rMin, rMax);
+    const max = Math.max(rMin, rMax);
+    if (min > 0 && max > 0) {
+      sendSuccess(res, {
+        min,
+        max,
+        reasoning: String(result.reasoning || ""),
+      });
+      return;
+    }
+  } catch {
+    // Fallback to market estimate
   }
+
+  const fallback = CATEGORY_PRICE_RANGES[data.category] || { min: 1000, max: 4000 };
+  let fallbackMin = fallback.min;
+  let fallbackMax = fallback.max;
+  if (data.estimatedDays && data.estimatedDays > 0) {
+    fallbackMin = Math.round(data.estimatedDays * fallback.min * 1.5);
+    fallbackMax = Math.round(data.estimatedDays * fallback.max * 1.5);
+  } else if (data.estimatedHours && data.estimatedHours > 0) {
+    fallbackMin = Math.round(data.estimatedHours * 800);
+    fallbackMax = Math.round(data.estimatedHours * 1500);
+  }
+  sendSuccess(res, {
+    min: fallbackMin,
+    max: fallbackMax,
+    reasoning: `Estimated market price based on typical ${data.category} rates and work details.`,
+  });
 }
 
 export async function createJob(req: AuthRequest, res: Response) {
@@ -120,10 +178,19 @@ export async function createJob(req: AuthRequest, res: Response) {
       "You are a pricing expert for home service jobs in Pakistan (PKR). Estimate a fair total price range.",
       `Category: ${data.category}\nTitle: ${data.title}\nDescription: ${data.description}\nRespond JSON: {"min":number,"max":number,"reasoning":string}`
     );
-    aiMin = Math.round(Number(ai.min) || 0);
-    aiMax = Math.round(Number(ai.max) || 0);
+    const rMin = Math.round(Number(ai.min) || 0);
+    const rMax = Math.round(Number(ai.max) || 0);
+    aiMin = Math.min(rMin, rMax);
+    aiMax = Math.max(rMin, rMax);
     aiReasoning = String(ai.reasoning || "");
-  } catch { /* skip AI on failure */ }
+  } catch {
+    const fallback = CATEGORY_PRICE_RANGES[data.category];
+    if (fallback) {
+      aiMin = fallback.min;
+      aiMax = fallback.max;
+      aiReasoning = `Market estimate based on standard ${data.category} rates.`;
+    }
+  }
 
   const job = await prisma.job.create({
     data: {
